@@ -1,0 +1,53 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Element Querries</title>
+  <script src="app.js"></script>
+</head>
+<body>
+  
+  <style>
+    ul {
+      display: -webkit-flex;
+      -webkit-justify-content: space-between;
+    }
+    li {
+      -webkit-flex: 1;
+    }
+    .big {
+      -webkit-flex: 2;  
+    }
+
+    .red {
+      background-color: red;
+    }
+
+    .absolute {
+      position: absolute;
+    }
+    .absolute {
+      top: 0;
+      right: 0;
+    }
+
+    @media all and (min-width: 600px) {
+      body {
+        background-color: green;
+      }
+    } 
+  </style>
+
+  <h1 id="el">Edward</h1>
+
+  <ul>
+    <li class="big">One</li>
+    <li>Two</li>
+    <li>Three</li>
+    <li>Four</li>
+    <li>Five</li>
+  </ul>
+
+  <div class="absolute">Absolute</div>
+</body>
+</html>
