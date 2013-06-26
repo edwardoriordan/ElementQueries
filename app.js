@@ -13,7 +13,7 @@
 
     this.runLoop = function() {
       that.list.forEach(function(media) {
-        media.matches();
+        media.checkForMatch();
       });  
     }
   };
@@ -27,34 +27,38 @@
 
     this.elements = arrayFromNodeList(element);
     this.query = parseMQ(query);
-    this._matched;
+    this.matches;
+    this._previousMatches;
     this.listeners = [];
 
-    this.elements.forEach(function(element) {
-      element.addEventListener("matchChange", function(e) {
-        console.info("Event is: ", e);
+    // this.elements.forEach(function(element) {
+    //   element.addEventListener("matchChange", function(e) {
+    //     that.listeners.forEach(function(listener) {
+    //       listener(that);
+    //     });
+    //   })
+    // });
 
-        that.listeners.forEach(function(listener) {
-          listener(that)
-        });
-      })
-    });
+    this.checkForMatch = function() {
 
-    this.matches = function() {
       var matches = evalMediaQuery(query)({
         width: getWidth(this.elements[0]),
         height: getHeight(this.elements[0])  
       });
 
-      if (matches !== that._matched) {
-        that._matched = matches;
-        this.elements.forEach(function(element) {
-          element.dispatchEvent(matchChanged);
-        });
+      if (matches !== that._previousMatches) {
+        that.onMatchChange(matches);
       }
 
       return matches;
     };
+
+    this.onMatchChange = function(matches) {
+      that._previousMatches = matches;
+      this.elements.forEach(function(element) {
+        element.dispatchEvent(matchChanged);
+      });
+    }
 
     this.addListener = function(cb) {
       that.listeners.push(cb);
@@ -73,8 +77,9 @@
   }
 
   function test() {
-    eq = new ElementMatchMedia('.big', 'min-width: 250px');
+    eq = new ElementMatchMedia('.big', '(min-width: 250px)');
     eq.addListener(function(media) {
+
       console.log('changed');
 
       media.elements.forEach(function(element) {
