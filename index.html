@@ -5,7 +5,7 @@
   <title>Element Querries</title>
   <script src="app.js"></script>
 </head>
-<body>
+<body id="body">
   
   <style>
     ul {
@@ -19,8 +19,19 @@
       -webkit-flex: 2;  
     }
 
-    .red {
+    .matching {
       background-color: red;
+    }
+    .matching::before {
+      content: 'I am matching ';
+      background-color: purple;
+    }
+    .not-matching {
+      background-color: blue;
+    }
+    .not-matching::before {
+      content: 'I am not matching ';
+      background-color: purple;
     }
 
     .absolute {
@@ -47,6 +58,8 @@
     <li>Four</li>
     <li>Five</li>
   </ul>
+
+  <div class="big">Big</div>
 
   <div class="absolute">Absolute</div>
 </body>

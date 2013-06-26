@@ -12,8 +12,8 @@
     }
 
     this.runLoop = function() {
-      that.list.forEach(function(media) {
-        media.checkForMatch();
+      that.list.forEach(function(elementQuery) {
+        elementQuery.checkAllForMatch();
       });  
     }
   };
@@ -22,48 +22,92 @@
   // Class
   var ElementMatchMedia = function(selector, query) {
     var that = this;
-    var matchChanged = new CustomEvent("matchChange");
+    var matchedEvent = new CustomEvent("matchChange", { 
+      bubbles: true,
+      cancelable: true
+    });
     var element = document.querySelectorAll(selector);
 
     this.elements = arrayFromNodeList(element);
-    this.query = parseMQ(query);
+    this.query = query;
     this.matches;
-    this._previousMatches;
     this.listeners = [];
+    this.matchedElements = [];
 
-    // this.elements.forEach(function(element) {
-    //   element.addEventListener("matchChange", function(e) {
-    //     that.listeners.forEach(function(listener) {
-    //       listener(that);
-    //     });
-    //   })
-    // });
-
-    this.checkForMatch = function() {
-
-      var matches = evalMediaQuery(query)({
-        width: getWidth(this.elements[0]),
-        height: getHeight(this.elements[0])  
-      });
-
-      if (matches !== that._previousMatches) {
-        that.onMatchChange(matches);
-      }
-
-      return matches;
-    };
-
-    this.onMatchChange = function(matches) {
-      that._previousMatches = matches;
-      this.elements.forEach(function(element) {
-        element.dispatchEvent(matchChanged);
-      });
-    }
-
+    // Add a listener to be fired when element matched change
     this.addListener = function(cb) {
       that.listeners.push(cb);
-      if (MEDIALIST.list.indexOf(that) === -1) MEDIALIST.list.push(that);
+      if (MEDIALIST.list.indexOf(that) === -1) {
+        MEDIALIST.list.push(that);
+
+        that.init();
+      }
     }; 
+
+    // Listener for matchChange events
+    // Fire any callbacks
+    document.addEventListener("matchChange", function(e) {
+      that.listeners.forEach(function(listener) {
+        listener( e.target, that.isElementMatching(e.target), that );
+      });
+    });
+
+    // Is element currently matched?
+    this.isElementMatching = function(element) {
+      return that.matchedElements.indexOf(element) !== -1;
+    }
+    // Remove element from matched array - emit matchChange event 
+    this.removeElementFromMatched = function(element) {
+      if (that.matchedElements.indexOf(element) !== -1) {    
+        that.matchedElements.splice(that.matchedElements.indexOf(element), 1);
+        element.dispatchEvent(matchedEvent);
+      }
+    }
+    // Add element from matched array - emit matchChange event 
+    this.addElementToMatched = function(element) {
+      if (that.matchedElements.indexOf(element) === -1) {  
+        that.matchedElements.push(element);
+        element.dispatchEvent(matchedEvent);
+      }
+    }
+
+    // Run from MediaList
+    // Check if any elements match querry
+    // Add or remove from matched list
+    this.checkAllForMatch = function() {
+      this.elements.forEach(function(element) {
+        if(that.checkElementMatches(element)) {
+          that.addElementToMatched(element);
+        } else {
+          that.removeElementFromMatched(element); 
+        }
+      });
+    };
+
+    // Same as this.checkAllForMatch
+    // Must dispatchEvent for elements not matched as well (1)
+    this.init = function() {
+     this.elements.forEach(function(element) {
+       if(that.checkElementMatches(element)) {
+         that.addElementToMatched(element);
+       } else {
+         that.removeElementFromMatched(element);
+
+         element.dispatchEvent(matchedEvent); // *1
+       }
+     });   
+    }
+
+    this.checkForMatchedChange = function(element) {
+    }
+
+    // Check if individual element matches querry
+    this.checkElementMatches = function(element) {
+      return evalMediaQuery(that.query)({
+        width: getWidth(element),
+        height: getHeight(element)  
+      });
+    };
   }
 
   document.addEventListener("DOMContentLoaded", ready, false);
@@ -72,32 +116,30 @@
     window.addEventListener("resize", runElementQueryLoopPerfomant, false);
 
     test();
-    
-    runElementQueryLoopPerfomant();
   }
 
   function test() {
     eq = new ElementMatchMedia('.big', '(min-width: 250px)');
-    eq.addListener(function(media) {
-
-      console.log('changed');
-
-      media.elements.forEach(function(element) {
-        // element.classList.toggle('red');
-        toggleClass(element, 'red', media._matched);
-      });
+    eq.addListener(function(element, matches) {
+      console.log('changed', element, matches);
+      if (matches) {
+        element.classList.add('matching');
+        element.classList.remove('not-matching');
+      } else {
+        element.classList.remove('matching');
+        element.classList.add('not-matching');
+      }
     });
+
+    // New API
+    // eq = new ElementMatchMedia('.big', '(min-width: 250px)', {
+    //   rateLimit: 'debounce',
+    //   toggleClassTrue: 'matching',
+    //   toggleClassFalse: 'not-matching',
+    // });
   }
 
-  // Utils
-  function toggleClass(element, className, truthy) {
-    if (truthy) {
-      element.classList.add(className);
-    } else {
-      element.classList.remove(className);
-    }  
-  }
-
+  // Utils or EQ
   function arrayFromNodeList(nodeList) {
     var arr = [],
         i = 0;
@@ -109,52 +151,9 @@
     return arr;
   }
 
-  // var mql = window.matchMedia("(orientation: portrait)");
-  // mql.addListener(handleOrientationChange);
-  // handleOrientationChange(mql);
-
-  // var eq = ElementMatchMedia(el, '(min-width: 50px)');
-  // eq.matches: true | false
-  // eq.addListener(callback(element, mq))
-
-  // Set Class
-  function setClass(selector, elClass, mq) {
-    var elems = document.querySelectorAll(selector);
-    
-    for (var i = 0; i < elems.length; ++i) {
-
-      console.log(elems[i], getWidth(elems[i]));
-      
-      if (getWidth(elems[i]) > mq) {
-        elems[i].classList.add(elClass);
-      } else {
-        elems[i].classList.remove(elClass);
-      }
-
-      // trigger event - element query matched
-    }
-  }
-
-  function parseMQ(query) {
-    var evalQ = query
-                  .replace(/\(|\)/g, "")
-                  .replace(/\s*,\s*/g, ") || (")
-                  .replace(/\s+and\s+/gi, " && ")
-                  .replace(/min-(.*?):/gi, "$1>=")
-                  .replace(/max-(.*?):/gi, "$1<=")
-                  .replace(/above-(.*?):/gi, "$1>")
-                  .replace(/below-(.*?):/gi, "$1<")
-                  .replace(/min-|max-/gi, "")
-                  .replace(/(all|screen|print)/, "d.$1")
-                  .replace(/:/g, "==")
-                  .replace(/([\w-]+)\s*([<>=]+)\s*(\w+)/g, function ($0, attribute, symbol, value) {
-                    return toCamelCase(attribute) + symbol + parseCSSNumber(value);
-                  });
-    return evalQ;
-  }
-
+  // EQ
   function evalMediaQuery(query) {
-      return Function("d", "return(" + query
+    return Function("d", "return(" + query
       .replace(/\(|\)/g, "")
       .replace(/\s*,\s*/g, ") || (")
       .replace(/\s+and\s+/gi, " && ")
@@ -169,31 +168,16 @@
         return "d." + toCamelCase($1) + $2 + parseCSSNumber($3);
       })
       .replace(/([<>=]+)([A-z][\w-]*)/g, '$1"$2"') + ")");
-    }
-
-  function parseMQObj(query) {
-    return query
-            .replace(/\(|\)/g, "")
-            .replace(/\s*,\s*/g, ") || (")
-            .replace(/\s+and\s+/gi, " && ")
-            .replace(/min-(.*?):/gi, "$1>=")
-            .replace(/max-(.*?):/gi, "$1<=")
-            .replace(/above-(.*?):/gi, "$1>")
-            .replace(/below-(.*?):/gi, "$1<")
-            .replace(/min-|max-/gi, "")
-            .replace(/(all|screen|print)/, "d.$1")
-            .replace(/:/g, "==")
-            .replace(/([\w-]+)\s*([<>=]+)\s*(\w+)/g, function ($0, attribute, symbol, value) {
-              return '|' + toCamelCase(attribute) + '|' + symbol + '|' + parseCSSNumber(value);
-            });
   }
 
+  // Utils
   function toCamelCase(value) {
     return value.toLowerCase().replace(/-[a-z]/g, function ($0) {
       return $0[1].toUpperCase();
     });
   }
 
+  // Utils
   function emsToPixels(em, scope) {
     var scope = scope || document.querySelectorAll('body')[0];
     var test = document.createElement("div");
@@ -209,6 +193,7 @@
     return Math.round(val * em);
   };
 
+  // Utils
   function remsToPixels(rem) {
     var scope = document.querySelectorAll('body')[0];
     var test = document.createElement("div");
@@ -223,6 +208,7 @@
     return Math.round(val * rem);
   };
 
+  // Utils
   function parseCSSNumber(value, window) {
     return value.replace(/([\d\.]+)(%|em|rem|in|pt|px)/, function ($0, $1, $2) {
       switch ($2) {
@@ -242,9 +228,8 @@
     });
   }
 
-  // Get Property
+  // Element Querry
   var getProperty = function(elem, property) {
-    // var elem = document.querySelectorAll(selector)[0];
     return window.getComputedStyle(elem)[property];  
   };
   var getWidth = function(selector) {
@@ -254,7 +239,7 @@
     return parseInt(getProperty(selector, 'height'));
   }
 
-  // Underscore
+  // Media List - from underscore
   debounce = function(func, wait, immediate) {
     var timeout, result;
     return function() {
