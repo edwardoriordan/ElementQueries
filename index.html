@@ -16,7 +16,8 @@
       -webkit-flex: 1;
     }
     .big {
-      -webkit-flex: 2;  
+      -webkit-flex: 2;
+      /*-webkit-flex-basis: 50%;*/
     }
 
     .matching {
@@ -41,6 +42,11 @@
       top: 0;
       right: 0;
     }
+    
+    /* This breaks everything */
+    div.not-matching.test {
+      /*width: 600px;*/
+    }
 
     @media all and (min-width: 600px) {
       body {
@@ -52,7 +58,7 @@
   <h1 id="el">Edward</h1>
 
   <ul>
-    <li class="big">One</li>
+    <li class="big">One <div class="test big">Nested Big</div></li>
     <li>Two</li>
     <li>Three</li>
     <li>Four</li>

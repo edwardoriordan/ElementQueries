@@ -1,23 +1,17 @@
 (function(window) {
 
-  // var MediaList = [];
-  var eq;
+  var ElementQueryList = function() {
+    var _self = this;
+    _self.list = [];
 
-  var MediaList = function() {
-    var that = this;
-    that.list = [];
-
-    this.add = function(item) {
-      that.list.push(item);
-    }
-
-    this.runLoop = function() {
-      that.list.forEach(function(elementQuery) {
-        elementQuery.checkAllForMatch();
+    _self.runLoop = function() {
+      _self.list.forEach(function(elementQuery) {
+        elementQuery.check();
       });  
     }
   };
-  var MEDIALIST = new MediaList();
+  // Create as a singlton ?
+  var MEDIALIST = new ElementQueryList();
 
   // Class
   var ElementMatchMedia = function(selector, query) {
@@ -35,6 +29,7 @@
     this.matchedElements = [];
 
     // Add a listener to be fired when element matched change
+    // Public*
     this.addListener = function(cb) {
       that.listeners.push(cb);
       if (MEDIALIST.list.indexOf(that) === -1) {
@@ -71,10 +66,11 @@
       }
     }
 
-    // Run from MediaList
+    // Run from ElementQueryList
     // Check if any elements match querry
     // Add or remove from matched list
-    this.checkAllForMatch = function() {
+    // Public*
+    this.check = function() {
       this.elements.forEach(function(element) {
         if(that.checkElementMatches(element)) {
           that.addElementToMatched(element);
@@ -84,7 +80,7 @@
       });
     };
 
-    // Same as this.checkAllForMatch
+    // Same as this.check
     // Must dispatchEvent for elements not matched as well (1)
     this.init = function() {
      this.elements.forEach(function(element) {
@@ -103,6 +99,7 @@
 
     // Check if individual element matches querry
     this.checkElementMatches = function(element) {
+      console.log( 'width: ' + getWidth(element) );
       return evalMediaQuery(that.query)({
         width: getWidth(element),
         height: getHeight(element)  
@@ -119,7 +116,7 @@
   }
 
   function test() {
-    eq = new ElementMatchMedia('.big', '(min-width: 250px)');
+    var eq = new ElementMatchMedia('.big', '(min-width: 250px)');
     eq.addListener(function(element, matches) {
       console.log('changed', element, matches);
       if (matches) {
@@ -130,6 +127,18 @@
         element.classList.add('not-matching');
       }
     });
+
+    // var eq2 = new ElementMatchMedia('.absolute', '(min-width: 250px)');
+    // eq2.addListener(function(element, matches) {
+    //   console.log('changed', element, matches);
+    //   if (matches) {
+    //     element.classList.add('matching');
+    //     element.classList.remove('not-matching');
+    //   } else {
+    //     element.classList.remove('matching');
+    //     element.classList.add('not-matching');
+    //   }
+    // });
 
     // New API
     // eq = new ElementMatchMedia('.big', '(min-width: 250px)', {
