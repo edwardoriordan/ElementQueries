@@ -16,14 +16,10 @@
   // Class
   var ElementMatchMedia = function(selector, query) {
     var that = this;
-    var matchedEvent = new CustomEvent("matchChange", { 
-      bubbles: true,
-      cancelable: true
-    });
     var element = document.querySelectorAll(selector);
 
     this.elements = arrayFromNodeList(element);
-    this.query = query;
+    this.query = mediaQueryToExpression(query);
     this.matches;
     this.listeners = [];
     this.matchedElements = [];
@@ -32,37 +28,58 @@
     // Public*
     this.addListener = function(cb) {
       that.listeners.push(cb);
+
       if (MEDIALIST.list.indexOf(that) === -1) {
         MEDIALIST.list.push(that);
-
-        that.init();
       }
-    }; 
 
-    // Listener for matchChange events
-    // Fire any callbacks
-    document.addEventListener("matchChange", function(e) {
-      that.listeners.forEach(function(listener) {
-        listener( e.target, that.isElementMatching(e.target), that );
+      that.check();
+      that.init();
+
+      // console.log(cb);
+      // debounce(that.init(), 500);
+      // return that;
+
+      // that.check();
+    };
+
+    that.toggleClass = function(isMatching, isNotMatching) {
+      var isNotMatching = isNotMatching || 'not-' + isMatching;
+      that.addListener(function(element, matches) {
+        if (matches) {
+          element.classList.add(isMatching);
+          element.classList.remove(isNotMatching);
+        } else {
+          element.classList.remove(isMatching);
+          element.classList.add(isNotMatching);
+        }
       });
-    });
+    }
 
+    // Fire any callbacks
+    this.matchChanged = function(element) {
+      that.listeners.forEach(function(listener) {
+        listener(element, that.isElementMatching(element), that );
+      });   
+    }
     // Is element currently matched?
     this.isElementMatching = function(element) {
       return that.matchedElements.indexOf(element) !== -1;
     }
+
     // Remove element from matched array - emit matchChange event 
     this.removeElementFromMatched = function(element) {
-      if (that.matchedElements.indexOf(element) !== -1) {    
+      if (that.matchedElements.indexOf(element) !== -1) {
         that.matchedElements.splice(that.matchedElements.indexOf(element), 1);
-        element.dispatchEvent(matchedEvent);
+        that.matchChanged(element);
       }
     }
+
     // Add element from matched array - emit matchChange event 
     this.addElementToMatched = function(element) {
-      if (that.matchedElements.indexOf(element) === -1) {  
+      if (that.matchedElements.indexOf(element) === -1) {
         that.matchedElements.push(element);
-        element.dispatchEvent(matchedEvent);
+        that.matchChanged(element);
       }
     }
 
@@ -80,53 +97,61 @@
       });
     };
 
-    // Same as this.check
-    // Must dispatchEvent for elements not matched as well (1)
+    // Same as this.check but must matchedChanged
     this.init = function() {
      this.elements.forEach(function(element) {
-       if(that.checkElementMatches(element)) {
-         that.addElementToMatched(element);
-       } else {
-         that.removeElementFromMatched(element);
-
-         element.dispatchEvent(matchedEvent); // *1
-       }
+       that.matchChanged(element);
      });   
-    }
-
-    this.checkForMatchedChange = function(element) {
     }
 
     // Check if individual element matches querry
     this.checkElementMatches = function(element) {
-      console.log( 'width: ' + getWidth(element) );
-      return evalMediaQuery(that.query)({
+      return evaluateExpression(that.query)({
         width: getWidth(element),
         height: getHeight(element)  
       });
     };
   }
 
+  // Do stuff
   document.addEventListener("DOMContentLoaded", ready, false);
   function ready() {
     var runElementQueryLoopPerfomant = debounce(MEDIALIST.runLoop, 100);
     window.addEventListener("resize", runElementQueryLoopPerfomant, false);
 
+
     test();
+
+    // window.dispatchEvent("resize");
   }
 
+  // @todo - add chaining
   function test() {
-    var eq = new ElementMatchMedia('.big', '(min-width: 250px)');
-    eq.addListener(function(element, matches) {
-      console.log('changed', element, matches);
-      if (matches) {
-        element.classList.add('matching');
-        element.classList.remove('not-matching');
-      } else {
-        element.classList.remove('matching');
-        element.classList.add('not-matching');
-      }
-    });
+    var eq = new ElementMatchMedia('.big', '(min-width: 750px)');
+    // eq.addListener(function(element, matches) {
+    //   // console.log('changed', element, matches);
+    //   if (matches) {
+    //     element.classList.add('matching');
+    //     element.classList.remove('not-matching');
+    //   } else {
+    //     element.classList.remove('matching');
+    //     element.classList.add('not-matching');
+    //   }
+    // });
+
+    // eq.addListener(function(element, matches) {
+    //   // console.log('changed', element, matches);
+    //   if (matches) {
+    //     element.classList.add('dsfads');
+    //     element.classList.remove('not-dsfadsf');
+    //   } else {
+    //     element.classList.remove('dsfads');
+    //     element.classList.add('not-dsfadsf');
+    //   }
+    // });
+
+    eq.toggleClass('t-mathcing', 't-matching-not');
+    eq.toggleClass('e-mathcing');
 
     // var eq2 = new ElementMatchMedia('.absolute', '(min-width: 250px)');
     // eq2.addListener(function(element, matches) {
@@ -161,8 +186,8 @@
   }
 
   // EQ
-  function evalMediaQuery(query) {
-    return Function("d", "return(" + query
+  function mediaQueryToExpression(query) {
+    return query
       .replace(/\(|\)/g, "")
       .replace(/\s*,\s*/g, ") || (")
       .replace(/\s+and\s+/gi, " && ")
@@ -174,9 +199,13 @@
       .replace(/(all|screen|print)/, "d.$1")
       .replace(/:/g, "==")
       .replace(/([\w-]+)\s*([<>=]+)\s*(\w+)/g, function ($0, $1, $2, $3) {
-        return "d." + toCamelCase($1) + $2 + parseCSSNumber($3);
-      })
-      .replace(/([<>=]+)([A-z][\w-]*)/g, '$1"$2"') + ")");
+        return toCamelCase($1) + $2 + parseCSSNumber($3);
+      });
+  }
+
+  function evaluateExpression(expression) {
+    var expression = 'q.' + expression;
+    return Function('q', 'return(' + expression + ')')
   }
 
   // Utils
