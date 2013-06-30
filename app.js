@@ -23,6 +23,7 @@
     this.matches;
     this.listeners = [];
     this.matchedElements = [];
+    this._allMatchedElements = [];
 
     // Add a listener to be fired when element matched change
     // Public*
@@ -34,14 +35,41 @@
       }
 
       that.check();
-      that.init();
-
-      // console.log(cb);
-      // debounce(that.init(), 500);
-      // return that;
-
-      // that.check();
     };
+
+    this.updateElements = function() {
+      var element = document.querySelectorAll(selector);
+      this.elements = arrayFromNodeList(element);  
+    }
+
+    this.selectedElements = function() {
+      return arrayFromNodeList( document.querySelectorAll(selector) );
+    }
+
+    // Run from ElementQueryList
+    // Check if any elements match querry
+    // Add or remove from matched list
+    // Public*
+    this.check = function() {
+      that.selectedElements().forEach(function(element) {
+
+        if(that.checkElementMatches(element)) {
+          that.addElementToMatched(element);
+        } else {
+          that.removeElementFromMatched(element); 
+        }
+
+        that._checkForFirstTime(element);
+      });
+    };
+
+    this._checkForFirstTime = function (element) {
+      // If the first time 
+      if (that._allMatchedElements.indexOf(element) === -1) {
+        that.matchChanged(element);
+        that._allMatchedElements.push(element);
+      }
+    }
 
     that.toggleClass = function(isMatching, isNotMatching) {
       var isNotMatching = isNotMatching || 'not-' + isMatching;
@@ -60,44 +88,28 @@
     this.matchChanged = function(element) {
       that.listeners.forEach(function(listener) {
         listener(element, that.isElementMatching(element), that );
-      });   
+      });
     }
-    // Is element currently matched?
+
+
     this.isElementMatching = function(element) {
       return that.matchedElements.indexOf(element) !== -1;
     }
-
-    // Remove element from matched array - emit matchChange event 
     this.removeElementFromMatched = function(element) {
+      // Only remove if already a matched element
       if (that.matchedElements.indexOf(element) !== -1) {
         that.matchedElements.splice(that.matchedElements.indexOf(element), 1);
         that.matchChanged(element);
       }
     }
-
-    // Add element from matched array - emit matchChange event 
     this.addElementToMatched = function(element) {
+
       if (that.matchedElements.indexOf(element) === -1) {
         that.matchedElements.push(element);
         that.matchChanged(element);
       }
     }
 
-    // Run from ElementQueryList
-    // Check if any elements match querry
-    // Add or remove from matched list
-    // Public*
-    this.check = function() {
-      this.elements.forEach(function(element) {
-        if(that.checkElementMatches(element)) {
-          that.addElementToMatched(element);
-        } else {
-          that.removeElementFromMatched(element); 
-        }
-      });
-    };
-
-    // Same as this.check but must matchedChanged
     this.init = function() {
      this.elements.forEach(function(element) {
        that.matchChanged(element);
@@ -118,59 +130,22 @@
   function ready() {
     var runElementQueryLoopPerfomant = debounce(MEDIALIST.runLoop, 100);
     window.addEventListener("resize", runElementQueryLoopPerfomant, false);
-
-
     test();
-
-    // window.dispatchEvent("resize");
   }
 
   // @todo - add chaining
   function test() {
     var eq = new ElementMatchMedia('.big', '(min-width: 750px)');
-    // eq.addListener(function(element, matches) {
-    //   // console.log('changed', element, matches);
-    //   if (matches) {
-    //     element.classList.add('matching');
-    //     element.classList.remove('not-matching');
-    //   } else {
-    //     element.classList.remove('matching');
-    //     element.classList.add('not-matching');
-    //   }
-    // });
 
-    // eq.addListener(function(element, matches) {
-    //   // console.log('changed', element, matches);
-    //   if (matches) {
-    //     element.classList.add('dsfads');
-    //     element.classList.remove('not-dsfadsf');
-    //   } else {
-    //     element.classList.remove('dsfads');
-    //     element.classList.add('not-dsfadsf');
-    //   }
-    // });
+    eq.toggleClass('matching');
 
-    eq.toggleClass('t-mathcing', 't-matching-not');
-    eq.toggleClass('e-mathcing');
-
-    // var eq2 = new ElementMatchMedia('.absolute', '(min-width: 250px)');
-    // eq2.addListener(function(element, matches) {
-    //   console.log('changed', element, matches);
-    //   if (matches) {
-    //     element.classList.add('matching');
-    //     element.classList.remove('not-matching');
-    //   } else {
-    //     element.classList.remove('matching');
-    //     element.classList.add('not-matching');
-    //   }
-    // });
-
-    // New API
-    // eq = new ElementMatchMedia('.big', '(min-width: 250px)', {
-    //   rateLimit: 'debounce',
-    //   toggleClassTrue: 'matching',
-    //   toggleClassFalse: 'not-matching',
-    // });
+    // Test with content add after page
+    var p = document.createElement("p");
+    p.classList.add('big');
+    var newContent = document.createTextNode("Hi there I was added afterward!");
+    p.appendChild(newContent);
+    document.body.appendChild(p);
+    eq.check();
   }
 
   // Utils or EQ
