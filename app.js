@@ -1,33 +1,97 @@
 (function(window) {
 
+  var MEDIA_LIST;
+  
   /** Element Query List
   ========================================================================== */
-  function ElementQueryList() {
+  function ElementQueryList(type) {
     this.elementQueries = [];
+    this.handler = this.getTimedoutHandler();
+    this.attachHandler();
   };
+
+  ElementQueryList.prototype.getTimedoutHandler = function(type, wait) {
+    var type = type || 'debounce';
+    var wait = wait || 250;
+
+    console.log(this[type]);
+    if (typeof this[type] !== 'undefined') {
+      return this[type](this.runLoop.bind(this), wait);
+    }
+  };
+  ElementQueryList.prototype.updateTimeoutType = function(deffer, wait) {
+    this.removeHandler();
+    this.handler = this.getTimedoutHandler(deffer, wait);
+    this.attachHandler();
+  };
+  ElementQueryList.prototype.attachHandler = function() {
+    window.addEventListener("resize", this.handler, false);     
+  };
+  ElementQueryList.prototype.removeHandler = function() {
+    window.removeEventListener("resize", this.handler, false);     
+  };
+
   ElementQueryList.prototype.add = function(elementQuery) {
-    console.log(this);
     if (this.elementQueries.indexOf(elementQuery) === -1) {
       this.elementQueries.push(elementQuery);
     }
   };
-  ElementQueryList.prototype.runLoop = function(edward) {
+  ElementQueryList.prototype.runLoop = function() {
+    console.log('run');
     this.elementQueries.forEach(function(elementQuery) {
       elementQuery.check();  
     });
   };
-  // ElementQueryList.prototype.runLoopS = this.runLoop.bind(this);
+  ElementQueryList.prototype.debounce = function(func, wait, immediate) {
+    var timeout, result;
+    return function() {
+      var context = this, args = arguments;
+      var later = function() {
+        timeout = null;
+        if (!immediate) result = func.apply(context, args);
+      };
+      var callNow = immediate && !timeout;
+      clearTimeout(timeout);
+      timeout = setTimeout(later, wait);
+      if (callNow) result = func.apply(context, args);
+      return result;
+    };
+  };
+  ElementQueryList.prototype.throttle = function(func, wait) {
+    var context, args, timeout, result;
+    var previous = 0;
+    var later = function() {
+      previous = new Date;
+      timeout = null;
+      result = func.apply(context, args);
+    };
+    return function() {
+      var now = new Date;
+      var remaining = wait - (now - previous);
+      context = this;
+      args = arguments;
+      if (remaining <= 0) {
+        clearTimeout(timeout);
+        timeout = null;
+        previous = now;
+        result = func.apply(context, args);
+      } else if (!timeout) {
+        timeout = setTimeout(later, remaining);
+      }
+      return result;
+    };
+  };
 
-  // @todo - Create as a singlton ?
-  var MEDIALIST = new ElementQueryList();
-  console.log(MEDIALIST);
+  if (typeof MEDIA_LIST === "undefined") {
+    MEDIA_LIST = new ElementQueryList();
+  }
 
   /** Element Query
   ========================================================================== */
   function ElementMatchMedia(selector, query) {
     this.selector = selector;
     this.elements = this.selectedElements();
-    this.query = mediaQueryToExpression(query);
+    this.query = this._mediaQueryToExpression(query);
     this.matches;
     this.listeners = [];
     this.matchedElements = [];
@@ -40,20 +104,13 @@
   ElementMatchMedia.prototype.addListener = function(cb) {
     this.listeners.push(cb);
 
-    MEDIALIST.add(this);
+    MEDIA_LIST.add(this);
 
     this.check();
   };
-
-  // ElementMatchMedia.prototype.updateElements = function(selector) {
-  //   var selector = selector || this.selector;
-  //   var element = document.querySelectorAll(selector);
-  //   this.elements = arrayFromNodeList(element);
-  // }
-
   ElementMatchMedia.prototype.selectedElements = function(selector) {
     var selector = selector || this.selector;
-    return arrayFromNodeList( document.querySelectorAll(selector) );
+    return this._arrayFromNodeList( document.querySelectorAll(selector) );
   }
 
   // Check if any elements match querry
@@ -69,6 +126,12 @@
       _self._checkForFirstTime(element);
     });
   };
+
+  ElementMatchMedia.prototype.changeGlobalTimeout = function(type, wait) {
+    if (type == 'debounce') var wait = wait || 50;
+    var wait = wait || 0;
+    MEDIA_LIST.updateTimeoutType(type, wait);
+  }
 
   // Helper function to add or remove class
   // based on match
@@ -86,6 +149,16 @@
   }
 
   /** Private */
+  // Element Querry
+  ElementMatchMedia.prototype.getProperty = function(elem, property) {
+    return window.getComputedStyle(elem)[property];  
+  };
+  ElementMatchMedia.prototype.getWidth = function(selector) {
+    return parseInt(this.getProperty(selector, 'width'));
+  }
+  ElementMatchMedia.prototype.getHeight = function(selector) {
+    return parseInt(this.getProperty(selector, 'height'));
+  }
 
   // If the first time 
   ElementMatchMedia.prototype._checkForFirstTime = function (element) {
@@ -120,37 +193,17 @@
   }
   // Check if individual element matches querry
   ElementMatchMedia.prototype.checkElementMatches = function(element) {
-    return evaluateExpression(this.query)({
-      width: getWidth(element),
-      height: getHeight(element)  
-    });
-  };
+    var _self = this;
 
-  // Do stuff
-  document.addEventListener("DOMContentLoaded", ready, false);
-  function ready() {
-    var runElementQueryLoopPerfomant = debounce(MEDIALIST.runLoop.bind(MEDIALIST), 100);
-    window.addEventListener("resize", runElementQueryLoopPerfomant, false);
-    test();
+    var eqObj = {};
+    if (this.query.indexOf('width') !== -1) eqObj.width = this.getWidth(element);
+    if (this.query.indexOf('height') !== -1) eqObj.height = this.getHeight(element);
+
+    return this._evaluateExpression(this.query)(eqObj);
   }
 
-  // @todo - add chaining
-  function test() {
-    var eq = new ElementMatchMedia('.big', '(min-width: 750px)');
-
-    eq.toggleClass('matching');
-
-    // Test with content add after page
-    var p = document.createElement("p");
-    p.classList.add('big');
-    var newContent = document.createTextNode("Hi there I was added afterward!");
-    p.appendChild(newContent);
-    document.body.appendChild(p);
-    eq.check();
-  }
-
-  // Utils or EQ
-  function arrayFromNodeList(nodeList) {
+  // Helper - transform node list to an array
+  ElementMatchMedia.prototype._arrayFromNodeList = function(nodeList) {
     var arr = [],
         i = 0;
     if (nodeList.length === 1) return [nodeList[0]];
@@ -161,8 +214,9 @@
     return arr;
   }
 
-  // EQ
-  function mediaQueryToExpression(query) {
+  // Format media querry as javascript expression
+  // Modified from - https://github.com/jonathantneal/MediaClass
+  ElementMatchMedia.prototype._mediaQueryToExpression = function(query) {
     return query
       .replace(/\(|\)/g, "")
       .replace(/\s*,\s*/g, ") || (")
@@ -178,51 +232,19 @@
         return toCamelCase($1) + $2 + parseCSSNumber($3);
       });
   }
-
-  function evaluateExpression(expression) {
+  // Test is query object matches querry expression
+  // Example - q.width > 750 && q.height > 500
+  ElementMatchMedia.prototype._evaluateExpression = function(expression) {
     var expression = 'q.' + expression;
     return Function('q', 'return(' + expression + ')')
   }
 
-  // Utils
+  // CSS Utils
   function toCamelCase(value) {
     return value.toLowerCase().replace(/-[a-z]/g, function ($0) {
       return $0[1].toUpperCase();
     });
   }
-
-  // Utils
-  function emsToPixels(em, scope) {
-    var scope = scope || document.querySelectorAll('body')[0];
-    var test = document.createElement("div");
-
-    test.style.fontSize = "1em";
-    test.style.margin = "0";
-    test.style.padding = "0";
-    test.style.border = "none";
-    test.style.width = "1em";
-    scope.appendChild(test);
-    var val = test.offsetWidth;
-    scope.removeChild(test);
-    return Math.round(val * em);
-  };
-
-  // Utils
-  function remsToPixels(rem) {
-    var scope = document.querySelectorAll('body')[0];
-    var test = document.createElement("div");
-    test.style.fontSize = "1rem";
-    test.style.margin = "0";
-    test.style.padding = "0";
-    test.style.border = "none";
-    test.style.width = "1rem";
-    scope.appendChild(test);
-    var val = test.offsetWidth;
-    scope.removeChild(test);
-    return Math.round(val * rem);
-  };
-
-  // Utils
   function parseCSSNumber(value, window) {
     return value.replace(/([\d\.]+)(%|em|rem|in|pt|px)/, function ($0, $1, $2) {
       switch ($2) {
@@ -238,61 +260,59 @@
         default:
           return $1;
       }
-
     });
+    // @todo - ems only work off root - fix this to calculate from
+    // particular dom scope
+    function emsToPixels(em, scope) {
+      var scope = scope || document.querySelectorAll('body')[0];
+      var test = document.createElement("div");
+
+      test.style.fontSize = "1em";
+      test.style.margin = "0";
+      test.style.padding = "0";
+      test.style.border = "none";
+      test.style.width = "1em";
+      scope.appendChild(test);
+      var val = test.offsetWidth;
+      scope.removeChild(test);
+      return Math.round(val * em);
+    };
+    function remsToPixels(rem) {
+      var scope = document.querySelectorAll('body')[0];
+      var test = document.createElement("div");
+      test.style.fontSize = "1rem";
+      test.style.margin = "0";
+      test.style.padding = "0";
+      test.style.border = "none";
+      test.style.width = "1rem";
+      scope.appendChild(test);
+      var val = test.offsetWidth;
+      scope.removeChild(test);
+      return Math.round(val * rem);
+    };
   }
 
-  // Element Querry
-  var getProperty = function(elem, property) {
-    return window.getComputedStyle(elem)[property];  
-  };
-  var getWidth = function(selector) {
-    return parseInt(getProperty(selector, 'width'));
-  }
-  var getHeight = function(selector) {
-    return parseInt(getProperty(selector, 'height'));
-  }
+  // --------------------------------------------------------
 
-  // Media List - from underscore
-  debounce = function(func, wait, immediate) {
-    var timeout, result;
-    return function() {
-      var context = this, args = arguments;
-      var later = function() {
-        timeout = null;
-        if (!immediate) result = func.apply(context, args);
-      };
-      var callNow = immediate && !timeout;
-      clearTimeout(timeout);
-      timeout = setTimeout(later, wait);
-      if (callNow) result = func.apply(context, args);
-      return result;
-    };
-  };
-  throttle = function(func, wait) {
-    var context, args, timeout, result;
-    var previous = 0;
-    var later = function() {
-      previous = new Date;
-      timeout = null;
-      result = func.apply(context, args);
-    };
-    return function() {
-      var now = new Date;
-      var remaining = wait - (now - previous);
-      context = this;
-      args = arguments;
-      if (remaining <= 0) {
-        clearTimeout(timeout);
-        timeout = null;
-        previous = now;
-        result = func.apply(context, args);
-      } else if (!timeout) {
-        timeout = setTimeout(later, remaining);
-      }
-      return result;
-    };
-  };
+  // Do stuff
+  document.addEventListener("DOMContentLoaded", ready, false);
+  function test() {
+    var eq = new ElementMatchMedia('.big', '(min-width: 750px)');
+
+    eq.toggleClass('matching');
+
+    // Test with content add after page
+    var p = document.createElement("p");
+    p.classList.add('big');
+    var newContent = document.createTextNode("Hi there I was added afterward!");
+    p.appendChild(newContent);
+    document.body.appendChild(p);
+    eq.check();
+
+    // Check changing global throttle settings
+    // eq.changeGlobalTimeout('throttle', 1000);
+    // eq.changeGlobalTimeout('debounce');
+  }
 
 })(this);
 
