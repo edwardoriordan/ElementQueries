@@ -1,134 +1,135 @@
 (function(window) {
 
-  var ElementQueryList = function() {
-    var _self = this;
-    _self.list = [];
-
-    _self.runLoop = function() {
-      _self.list.forEach(function(elementQuery) {
-        elementQuery.check();
-      });  
+  /** Element Query List
+  ========================================================================== */
+  function ElementQueryList() {
+    this.elementQueries = [];
+  };
+  ElementQueryList.prototype.add = function(elementQuery) {
+    console.log(this);
+    if (this.elementQueries.indexOf(elementQuery) === -1) {
+      this.elementQueries.push(elementQuery);
     }
   };
-  // Create as a singlton ?
+  ElementQueryList.prototype.runLoop = function(edward) {
+    this.elementQueries.forEach(function(elementQuery) {
+      elementQuery.check();  
+    });
+  };
+  // ElementQueryList.prototype.runLoopS = this.runLoop.bind(this);
+
+  // @todo - Create as a singlton ?
   var MEDIALIST = new ElementQueryList();
+  console.log(MEDIALIST);
 
-  // Class
-  var ElementMatchMedia = function(selector, query) {
-    var that = this;
-    var element = document.querySelectorAll(selector);
-
-    this.elements = arrayFromNodeList(element);
+  /** Element Query
+  ========================================================================== */
+  function ElementMatchMedia(selector, query) {
+    this.selector = selector;
+    this.elements = this.selectedElements();
     this.query = mediaQueryToExpression(query);
     this.matches;
     this.listeners = [];
     this.matchedElements = [];
     this._allMatchedElements = [];
-
-    // Add a listener to be fired when element matched change
-    // Public*
-    this.addListener = function(cb) {
-      that.listeners.push(cb);
-
-      if (MEDIALIST.list.indexOf(that) === -1) {
-        MEDIALIST.list.push(that);
-      }
-
-      that.check();
-    };
-
-    this.updateElements = function() {
-      var element = document.querySelectorAll(selector);
-      this.elements = arrayFromNodeList(element);  
-    }
-
-    this.selectedElements = function() {
-      return arrayFromNodeList( document.querySelectorAll(selector) );
-    }
-
-    // Run from ElementQueryList
-    // Check if any elements match querry
-    // Add or remove from matched list
-    // Public*
-    this.check = function() {
-      that.selectedElements().forEach(function(element) {
-
-        if(that.checkElementMatches(element)) {
-          that.addElementToMatched(element);
-        } else {
-          that.removeElementFromMatched(element); 
-        }
-
-        that._checkForFirstTime(element);
-      });
-    };
-
-    this._checkForFirstTime = function (element) {
-      // If the first time 
-      if (that._allMatchedElements.indexOf(element) === -1) {
-        that.matchChanged(element);
-        that._allMatchedElements.push(element);
-      }
-    }
-
-    that.toggleClass = function(isMatching, isNotMatching) {
-      var isNotMatching = isNotMatching || 'not-' + isMatching;
-      that.addListener(function(element, matches) {
-        if (matches) {
-          element.classList.add(isMatching);
-          element.classList.remove(isNotMatching);
-        } else {
-          element.classList.remove(isMatching);
-          element.classList.add(isNotMatching);
-        }
-      });
-    }
-
-    // Fire any callbacks
-    this.matchChanged = function(element) {
-      that.listeners.forEach(function(listener) {
-        listener(element, that.isElementMatching(element), that );
-      });
-    }
-
-
-    this.isElementMatching = function(element) {
-      return that.matchedElements.indexOf(element) !== -1;
-    }
-    this.removeElementFromMatched = function(element) {
-      // Only remove if already a matched element
-      if (that.matchedElements.indexOf(element) !== -1) {
-        that.matchedElements.splice(that.matchedElements.indexOf(element), 1);
-        that.matchChanged(element);
-      }
-    }
-    this.addElementToMatched = function(element) {
-
-      if (that.matchedElements.indexOf(element) === -1) {
-        that.matchedElements.push(element);
-        that.matchChanged(element);
-      }
-    }
-
-    this.init = function() {
-     this.elements.forEach(function(element) {
-       that.matchChanged(element);
-     });   
-    }
-
-    // Check if individual element matches querry
-    this.checkElementMatches = function(element) {
-      return evaluateExpression(that.query)({
-        width: getWidth(element),
-        height: getHeight(element)  
-      });
-    };
   }
+
+  /** Public */
+
+  // Add a listener - fired when a elements matched status changes
+  ElementMatchMedia.prototype.addListener = function(cb) {
+    this.listeners.push(cb);
+
+    MEDIALIST.add(this);
+
+    this.check();
+  };
+
+  // ElementMatchMedia.prototype.updateElements = function(selector) {
+  //   var selector = selector || this.selector;
+  //   var element = document.querySelectorAll(selector);
+  //   this.elements = arrayFromNodeList(element);
+  // }
+
+  ElementMatchMedia.prototype.selectedElements = function(selector) {
+    var selector = selector || this.selector;
+    return arrayFromNodeList( document.querySelectorAll(selector) );
+  }
+
+  // Check if any elements match querry
+  // Add or remove from matched list
+  ElementMatchMedia.prototype.check = function() {
+    var _self = this;
+    this.selectedElements().forEach(function(element) {
+      if(_self.checkElementMatches(element)) {
+        _self.addElementToMatched(element);
+      } else {
+        _self.removeElementFromMatched(element); 
+      }
+      _self._checkForFirstTime(element);
+    });
+  };
+
+  // Helper function to add or remove class
+  // based on match
+  ElementMatchMedia.prototype.toggleClass = function(isMatching, isNotMatching) {
+    var isNotMatching = isNotMatching || 'not-' + isMatching;
+    this.addListener(function(element, matches) {
+      if (matches) {
+        element.classList.add(isMatching);
+        element.classList.remove(isNotMatching);
+      } else {
+        element.classList.remove(isMatching);
+        element.classList.add(isNotMatching);
+      }
+    });
+  }
+
+  /** Private */
+
+  // If the first time 
+  ElementMatchMedia.prototype._checkForFirstTime = function (element) {
+    if (this._allMatchedElements.indexOf(element) === -1) {
+      this.matchChanged(element);
+      this._allMatchedElements.push(element);
+    }
+  }
+  // Fire any callbacks
+  ElementMatchMedia.prototype.matchChanged = function(element) {
+    var _self = this;
+    this.listeners.forEach(function(listener) {
+      listener(element, _self.isElementMatching(element), _self );
+    });
+  }
+
+  ElementMatchMedia.prototype.isElementMatching = function(element) {
+    return this.matchedElements.indexOf(element) !== -1;
+  }
+  ElementMatchMedia.prototype.removeElementFromMatched = function(element) {
+    // Only remove if already a matched element
+    if (this.matchedElements.indexOf(element) !== -1) {
+      this.matchedElements.splice(this.matchedElements.indexOf(element), 1);
+      this.matchChanged(element);
+    }
+  }
+  ElementMatchMedia.prototype.addElementToMatched = function(element) {
+    if (this.matchedElements.indexOf(element) === -1) {
+      this.matchedElements.push(element);
+      this.matchChanged(element);
+    }
+  }
+  // Check if individual element matches querry
+  ElementMatchMedia.prototype.checkElementMatches = function(element) {
+    return evaluateExpression(this.query)({
+      width: getWidth(element),
+      height: getHeight(element)  
+    });
+  };
 
   // Do stuff
   document.addEventListener("DOMContentLoaded", ready, false);
   function ready() {
-    var runElementQueryLoopPerfomant = debounce(MEDIALIST.runLoop, 100);
+    var runElementQueryLoopPerfomant = debounce(MEDIALIST.runLoop.bind(MEDIALIST), 100);
     window.addEventListener("resize", runElementQueryLoopPerfomant, false);
     test();
   }
